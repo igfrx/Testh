@@ -1,13 +1,6 @@
--- Updated Arceus UI script (adds tab rounded corners, tab transparency/theme color linkage,
--- per-tab color API, PC detection (RightCtrl minimize), and larger UI on PC).
-
 local lib = {}
 
 local Script_Title = "Loading.."
-
--- Services
-local TweenService = game:GetService("TweenService")
-local UserInputService = game:GetService("UserInputService")
 
 -- Instances:
 local Arceus = Instance.new("ScreenGui")
@@ -81,8 +74,19 @@ Main.Draggable = true
 Main.AnchorPoint = Vector2.new(0.5, 0.5)
 Main.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 Main.BorderSizePixel = 0
-Main.Position = UDim2.new(0.5, 0, -0.2, 0) -- will tween into view later
-Main.Size = UDim2.new(0.3, 0, 0.3, 0)
+Main.Position = UDim2.new(0.5, 0, -0.2, 0) --UDim2.new(0.5, 0, 0.5, 0)
+
+-- Detect if running on PC
+local IS_PC = game:GetService("UserInputService"):GetPlatform() == Enum.Platform.Windows or 
+              game:GetService("UserInputService"):GetPlatform() == Enum.Platform.UWP or
+              game:GetService("UserInputService"):GetPlatform() == Enum.Platform.MacOsX
+
+-- Set size based on platform
+if IS_PC then
+    Main.Size = UDim2.new(0.35, 0, 0.4, 0) -- Larger UI for PC
+else
+    Main.Size = UDim2.new(0.3, 0, 0.3, 0) -- Original size for mobile
+end
 
 UICorner.CornerRadius = UDim.new(0.1, 0)
 UICorner.Parent = Main
@@ -99,6 +103,7 @@ MainShadow.BackgroundTransparency = 1
 MainShadow.Position = UDim2.new(0, -15, 0, -15)
 MainShadow.Size = UDim2.new(1, 30, 1, 30)
 MainShadow.ZIndex = -1
+MainShadow.Parent = Main
 
 -- Tabs System
 TabsContainer.Name = "TabsContainer"
@@ -128,10 +133,8 @@ TabsListLayout.FillDirection = Enum.FillDirection.Horizontal
 TabsListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 TabsListLayout.Padding = UDim.new(0.02, 0)
 
--- Tab button template (rounded + slightly transparent by default)
 TabButtonTemplate.Name = "TabButtonTemplate"
 TabButtonTemplate.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-TabButtonTemplate.BackgroundTransparency = 0.10 -- default transparency requested
 TabButtonTemplate.BorderSizePixel = 0
 TabButtonTemplate.Size = UDim2.new(0, 80, 0.8, 0) -- Small fixed width for tabs
 TabButtonTemplate.Font = Enum.Font.TitilliumWeb
@@ -142,6 +145,7 @@ TabButtonTemplate.TextSize = 14
 TabButtonTemplate.TextWrapped = true
 TabButtonTemplate.AutoButtonColor = false
 
+-- Add UI corners to tab buttons
 TabButtonUICorner.CornerRadius = UDim.new(0.15, 0)
 TabButtonUICorner.Parent = TabButtonTemplate
 
@@ -479,78 +483,140 @@ MaxLabel.TextWrapped = true
 MaxLabel.TextXAlignment = Enum.TextXAlignment.Right
 MaxLabel.Visible = false
 
--- SCRIPT (logic)
+-- SCRIPT
 
--- Platform detection (PC = Windows or OSX considered)
-local function detectPC()
-    local platform = UserInputService:GetPlatform()
-    return platform == Enum.Platform.Windows or platform == Enum.Platform.OSX
-end
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 
-local isPC = detectPC()
-
--- make UI bigger on PC
+-- Variables for UI state management
+local isMinimized = false
 local originalMainSize = Main.Size
-if isPC then
-    -- increase default size and tab size template
-    Main.Size = UDim2.new(0.4, 0, 0.4, 0)
-    originalMainSize = Main.Size
-    TabButtonTemplate.Size = UDim2.new(0, 110, 0.85, 0)
-end
+local originalMainPosition = Main.Position
+local minimizedSize = UDim2.new(0.1, 0, 0.175, 0)
 
--- keep a saved size/position for minimize/restore
-local savedMainSize = Main.Size
-local savedMainPosition = Main.Position
-local minimized = false
+-- Set initial transparency to 0.10 (90% visible)
+Main.BackgroundTransparency = 0.10
+Intro.BackgroundTransparency = 0.10
 
-local function minimizeUI()
-    if minimized then
-        -- restore
-        minimized = false
-        -- show children (except intro which is handled separately in your close code)
+-- Function to toggle UI minimization
+local function toggleMinimize()
+    if isMinimized then
+        -- Restore UI
+        Logo.Active = false
+        TweenService:Create(Logo, TweenInfo.new(0.25, Enum.EasingStyle.Linear, Enum.EasingDirection.In), {ImageTransparency = 0}):Play()
+        TweenService:Create(Intro, TweenInfo.new(0.25, Enum.EasingStyle.Linear, Enum.EasingDirection.In), {BackgroundTransparency = 0.10}):Play()
+        TweenService:Create(Main, TweenInfo.new(0.25, Enum.EasingStyle.Linear, Enum.EasingDirection.In), {BackgroundTransparency = 0.10}):Play()
+        
+        task.wait(0.3)
+        Main:TweenSize(
+            originalMainSize,
+            Enum.EasingDirection.Out,
+            Enum.EasingStyle.Quad,
+            0.25, true, nil
+        )
+        
+        task.wait(0.3)
+        Logo:TweenSizeAndPosition(
+            UDim2.fromScale(0.175, 0.175),
+            UDim2.fromScale(0.075, 0.15),
+            Enum.EasingDirection.Out,
+            Enum.EasingStyle.Quad,
+            0.25, true, nil
+        )
+        
         for _, obj in pairs(Main:GetChildren()) do
-            if obj:IsA("GuiObject") and obj ~= Intro then
+            if obj:IsA("GuiObject") and obj ~= Intro and obj ~= MainShadow then
                 obj.Visible = true
             end
         end
-        Main:TweenSize(savedMainSize, Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.25, true)
-        -- restore transparency
-        TweenService:Create(Main, TweenInfo.new(0.25), {BackgroundTransparency = 0}):Play()
+        
+        task.wait(0.3)
+        TweenService:Create(Intro, TweenInfo.new(0.25, Enum.EasingStyle.Linear, Enum.EasingDirection.In), {BackgroundTransparency = 1}):Play()
     else
-        -- minimize (shrink and hide content)
-        minimized = true
-        -- hide children (except intro)
+        -- Minimize UI
+        Logo.Active = true
+        TweenService:Create(Intro, TweenInfo.new(0.25, Enum.EasingStyle.Linear, Enum.EasingDirection.In), {BackgroundTransparency = 0.10}):Play()
+        
+        task.wait(0.3)
+        Logo:TweenSizeAndPosition(
+            UDim2.fromScale(0.75, 0.75),
+            UDim2.fromScale(0.5, 0.5),
+            Enum.EasingDirection.Out,
+            Enum.EasingStyle.Quad,
+            0.25, true, nil
+        )
+        
+        task.wait(0.3)
+        Main:TweenSize(
+            minimizedSize,
+            Enum.EasingDirection.Out,
+            Enum.EasingStyle.Quad,
+            0.25, true, nil
+        )
+        
+        task.wait(0.3)
         for _, obj in pairs(Main:GetChildren()) do
-            if obj:IsA("GuiObject") and obj ~= Intro then
+            if obj:IsA("GuiObject") and obj ~= Intro and obj ~= MainShadow and obj ~= Logo then
                 obj.Visible = false
             end
         end
-        -- small scale similar to your Close behaviour
-        Main:TweenSize(UDim2.fromScale(0.1, 0.175), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.25, true)
-        TweenService:Create(Main, TweenInfo.new(0.25), {BackgroundTransparency = 0.8}):Play()
+        
+        TweenService:Create(Logo, TweenInfo.new(0.25, Enum.EasingStyle.Linear, Enum.EasingDirection.In), {ImageTransparency = 0.8}):Play()
+        TweenService:Create(Intro, TweenInfo.new(0.25, Enum.EasingStyle.Linear, Enum.EasingDirection.In), {BackgroundTransparency = 1}):Play()
+        TweenService:Create(Main, TweenInfo.new(0.25, Enum.EasingStyle.Linear, Enum.EasingDirection.In), {BackgroundTransparency = 0.8}):Play()
     end
+    
+    isMinimized = not isMinimized
 end
 
--- Bind RightCtrl to minimize on PC
-if isPC then
-    UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
-        if gameProcessedEvent then return end
-        if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == Enum.KeyCode.RightControl then
-            minimizeUI()
+-- Set up RightCtrl keybind for PC only
+if IS_PC then
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if not gameProcessed then
+            if input.KeyCode == Enum.KeyCode.RightControl then
+                toggleMinimize()
+            end
         end
     end)
 end
 
--- Ensure Arceus parent
+Close.MouseButton1Click:Connect(function()
+    toggleMinimize()
+end)
+
+Logo.MouseButton1Click:Connect(function()
+    if isMinimized then
+        toggleMinimize()
+    else
+        -- Original logo click behavior when not minimized
+        Logo.Active = false
+        TweenService:Create(Logo, TweenInfo.new(0.25, Enum.EasingStyle.Linear, Enum.EasingDirection.In), {ImageTransparency = 0}):Play()
+        TweenService:Create(Intro, TweenInfo.new(0.25, Enum.EasingStyle.Linear, Enum.EasingDirection.In), {BackgroundTransparency = 0.10}):Play()
+        TweenService:Create(Main, TweenInfo.new(0.25, Enum.EasingStyle.Linear, Enum.EasingDirection.In), {BackgroundTransparency = 0.10}):Play()
+        
+        task.wait(0.3)
+        Logo:TweenSizeAndPosition(
+            UDim2.fromScale(0.175, 0.175),
+            UDim2.fromScale(0.075, 0.15),
+            Enum.EasingDirection.Out,
+            Enum.EasingStyle.Quad,
+            0.25, true, nil
+        )
+        
+        task.wait(0.3)
+        TweenService:Create(Intro, TweenInfo.new(0.25, Enum.EasingStyle.Linear, Enum.EasingDirection.In), {BackgroundTransparency = 1}):Play()
+    end
+end)
+
 local function uiparent()
     local success, parent = pcall(function()
         return gethui()
     end)
-
+    
     if not success then
         return game:GetService("CoreGui")
     end
-
+    
     return parent
 end
 
@@ -563,9 +629,6 @@ if not success then
 end
 
 local element_height = 50*Menu.AbsoluteSize.Y/210
-if isPC then
-    element_height = element_height * 1.2
-end
 local elements = 0
 
 local function AddSpace(parent)
@@ -573,7 +636,7 @@ local function AddSpace(parent)
     space.Parent = parent
     space.LayoutOrder = elements
     space.Visible = true
-
+    
     elements += 1
 end
 
@@ -583,36 +646,16 @@ local tabs = {}
 local tabContents = {}
 local tabOrderCounter = 0
 
--- Tab appearance state variables
-local tabTransparency = 0.10 -- default transparency for tabs
-local tabDefaultColor = Color3.fromRGB(60,60,60)
-local tabActiveColor = Color3.fromRGB(80,80,80)
-
--- utility to apply tab appearance to a button object
-local function applyTabAppearance(btn, rcolor, gcolor, bcolor, transparency)
-    if btn and btn:IsA("GuiObject") then
-        local color = rcolor or tabDefaultColor.R*255
-        if type(rcolor) == "number" and type(gcolor) == "number" and type(bcolor) == "number" then
-            btn.BackgroundColor3 = Color3.fromRGB(rcolor, gcolor, bcolor)
-        elseif type(rcolor) == "table" and rcolor.r then
-            btn.BackgroundColor3 = rcolor
-        else
-            -- fallback to stored default
-            btn.BackgroundColor3 = tabDefaultColor
-        end
-        btn.BackgroundTransparency = (transparency ~= nil) and transparency or tabTransparency
-    end
-end
-
 function lib:CreateTab(name)
     local newTabButton = TabButtonTemplate:Clone()
     newTabButton.Name = name .. "Tab"
     newTabButton.Text = name
     newTabButton.Parent = TabsScroller
     newTabButton.Visible = true
-    -- ensure appearance is applied
-    applyTabAppearance(newTabButton, tabDefaultColor.R*255, tabDefaultColor.G*255, tabDefaultColor.B*255, tabTransparency)
-
+    
+    -- Set initial transparency
+    newTabButton.BackgroundTransparency = 0.10
+    
     -- Create a container for this tab's content
     local tabContent = Instance.new("ScrollingFrame")
     tabContent.Name = name .. "Content"
@@ -625,12 +668,12 @@ function lib:CreateTab(name)
     tabContent.ScrollBarThickness = Menu.ScrollBarThickness
     tabContent.AutomaticCanvasSize = Enum.AutomaticSize.Y
     tabContent.Visible = false
-
+    
     local tabContentLayout = Instance.new("UIListLayout")
     tabContentLayout.Name = "UIListLayout"
     tabContentLayout.Parent = tabContent
     tabContentLayout.SortOrder = Enum.SortOrder.LayoutOrder
-
+    
     -- Store tab data
     local tabData = {
         button = newTabButton,
@@ -639,20 +682,20 @@ function lib:CreateTab(name)
         order = tabOrderCounter,
         elements = {}
     }
-
+    
     tabs[name] = tabData
     tabOrderCounter += 1
-
+    
     -- Set up tab button click
     newTabButton.MouseButton1Click:Connect(function()
         lib:SwitchTab(name)
     end)
-
+    
     -- If this is the first tab, make it active
     if not currentTab then
         lib:SwitchTab(name)
     end
-
+    
     return tabData
 end
 
@@ -661,13 +704,13 @@ function lib:SwitchTab(tabName)
         -- Hide current tab content
         if currentTab and tabs[currentTab] then
             tabs[currentTab].content.Visible = false
-            applyTabAppearance(tabs[currentTab].button, tabDefaultColor.R*255, tabDefaultColor.G*255, tabDefaultColor.B*255, tabTransparency)
+            tabs[currentTab].button.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
         end
-
+        
         -- Show new tab content
         tabs[tabName].content.Visible = true
-        applyTabAppearance(tabs[tabName].button, tabActiveColor.R*255, tabActiveColor.G*255, tabActiveColor.B*255, tabTransparency)
-
+        tabs[tabName].button.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+        
         -- Update current tab
         currentTab = tabName
     end
@@ -684,27 +727,27 @@ end
 function lib:AddToggle(name, funct, enabled, ...)
     local tabContent = lib:GetCurrentTabContent()
     local args = {...}
-
+    
     local newTog = Toggle:Clone()
     newTog.MouseButton1Click:Connect(function()
         enabled = not enabled
         newTog:WaitForChild("Enabled"):WaitForChild("Check").Visible = enabled
         funct(enabled, unpack(args))
     end)
-
+    
     newTog:WaitForChild("Enabled"):WaitForChild("Check").Visible = enabled
     newTog:WaitForChild("Name").Text = name
-
+    
     newTog.Size = UDim2.new(0.95, 0, 0, element_height)
     newTog.Name = name
     newTog.Parent = tabContent
     newTog.Visible = true
-
+    
     -- Store element in current tab if we have one
     if currentTab then
         table.insert(tabs[currentTab].elements, newTog)
     end
-
+    
     return newTog
 end
 
@@ -712,23 +755,23 @@ end
 function lib:AddButton(name, funct, ...)
     local tabContent = lib:GetCurrentTabContent()
     local args = {...}
-
+    
     local newBut = Button:Clone()
     newBut.MouseButton1Click:Connect(function()
         funct(unpack(args))
     end)
-
+    
     newBut:WaitForChild("Name").Text = name
     newBut.Size = UDim2.new(0.95, 0, 0, element_height)
     newBut.Name = name
     newBut.Parent = tabContent
     newBut.Visible = true
-
+    
     -- Store element in current tab if we have one
     if currentTab then
         table.insert(tabs[currentTab].elements, newBut)
     end
-
+    
     return newBut
 end
 
@@ -736,14 +779,14 @@ end
 function lib:AddInputBox(name, funct, placeholder, default, options, ...)
     local tabContent = lib:GetCurrentTabContent()
     local args = {...}
-
+    
     local newInput = InputBox:Clone()
-
+    
     -- Parse options for min and max values
     local minValue = nil
     local maxValue = nil
     local isNumberOnly = false
-
+    
     if options then
         if options.min ~= nil then
             minValue = options.min
@@ -755,7 +798,7 @@ function lib:AddInputBox(name, funct, placeholder, default, options, ...)
             isNumberOnly = options.isNumber
         end
     end
-
+    
     newInput:WaitForChild("Name").Text = name
     if placeholder then
         newInput.TextBox.PlaceholderText = placeholder
@@ -763,12 +806,12 @@ function lib:AddInputBox(name, funct, placeholder, default, options, ...)
     if default then
         newInput.TextBox.Text = default
     end
-
+    
     -- Show min and max labels if values are provided
     if minValue ~= nil or maxValue ~= nil then
         newInput.MinLabel.Visible = true
         newInput.MaxLabel.Visible = true
-
+        
         if minValue ~= nil then
             newInput.MinLabel.Text = "Min: " .. tostring(minValue)
         end
@@ -776,15 +819,15 @@ function lib:AddInputBox(name, funct, placeholder, default, options, ...)
             newInput.MaxLabel.Text = "Max: " .. tostring(maxValue)
         end
     end
-
+    
     local textBox = newInput.TextBox
-
+    
     -- Function to validate input based on min/max constraints
     local function validateInput(inputText)
         if isNumberOnly then
             -- Remove non-numeric characters
             local numericText = inputText:gsub("[^%-%d%.]", "")
-
+            
             -- Ensure only one decimal point
             local decimalCount = 0
             local cleanedText = ""
@@ -804,9 +847,9 @@ function lib:AddInputBox(name, funct, placeholder, default, options, ...)
                     cleanedText = cleanedText .. char
                 end
             end
-
+            
             inputText = cleanedText
-
+            
             -- Apply min/max constraints if they exist
             if inputText ~= "" and inputText ~= "-" and inputText ~= "." then
                 local numValue = tonumber(inputText)
@@ -819,30 +862,30 @@ function lib:AddInputBox(name, funct, placeholder, default, options, ...)
                 end
             end
         end
-
+        
         return inputText
     end
-
+    
     -- Function to handle text submission
     local function submitText()
         local text = textBox.Text
         local validatedText = validateInput(text)
-
+        
         if text ~= validatedText then
             textBox.Text = validatedText
             text = validatedText
         end
-
+        
         funct(text, unpack(args))
     end
-
+    
     -- Function to handle real-time validation for number input
     local function handleTextChanged()
         if isNumberOnly then
             local cursorPos = textBox.CursorPosition
             local text = textBox.Text
             local validatedText = validateInput(text)
-
+            
             if text ~= validatedText then
                 textBox.Text = validatedText
                 -- Try to restore cursor position
@@ -850,10 +893,10 @@ function lib:AddInputBox(name, funct, placeholder, default, options, ...)
             end
         end
     end
-
+    
     -- Connect text changed event for real-time validation
     textBox:GetPropertyChangedSignal("Text"):Connect(handleTextChanged)
-
+    
     -- Submit on Enter key
     textBox.FocusLost:Connect(function(enterPressed)
         if enterPressed then
@@ -863,24 +906,24 @@ function lib:AddInputBox(name, funct, placeholder, default, options, ...)
             handleTextChanged()
         end
     end)
-
+    
     -- Submit on clicking outside the text box
     newInput.MouseButton1Click:Connect(function()
         if not textBox:IsFocused() then
             textBox:CaptureFocus()
         end
     end)
-
+    
     newInput.Size = UDim2.new(0.95, 0, 0, element_height)
     newInput.Name = name
     newInput.Parent = tabContent
     newInput.Visible = true
-
+    
     -- Store element in current tab if we have one
     if currentTab then
         table.insert(tabs[currentTab].elements, newInput)
     end
-
+    
     -- Return the input box and text box for external control
     local inputObj = {
         Frame = newInput,
@@ -927,10 +970,10 @@ function lib:AddInputBox(name, funct, placeholder, default, options, ...)
             return maxValue
         end
     }
-
+    
     -- Apply initial validation
     handleTextChanged()
-
+    
     return inputObj
 end
 
@@ -940,56 +983,56 @@ function lib:AddComboBox(text, options, funct, ...)
     local enabled = false
     local elems = {}
     local args = {...}
-
+    
     local newCombo = ComboBox:Clone()
-
+    
     local function setBoxState()
         newCombo:WaitForChild("Img").Rotation = enabled and 0 or 180
         for _, elem in ipairs(elems) do
             elem.Visible = enabled
         end
     end
-
+    
     newCombo.MouseButton1Click:Connect(function()
         enabled = not enabled
         setBoxState()
     end)
-
+    
     newCombo:WaitForChild("Name").Text = text .. ": " .. (#options > 0 and options[1] or "")
     newCombo.Size = UDim2.new(0.95, 0, 0, element_height)
     newCombo.Name = #options > 0 and options[1] or ""
     newCombo.Parent = tabContent
     newCombo.Visible = true
-
+    
     -- Store element in current tab if we have one
     if currentTab then
         table.insert(tabs[currentTab].elements, newCombo)
     end
-
+    
     for _, name in ipairs(options) do
         local newElem = ComboElem:Clone()
         table.insert(elems, newElem)
-
+        
         newElem.MouseButton1Click:Connect(function()
             newCombo:WaitForChild("Name").Text = text .. ": " .. name
             enabled = false
             setBoxState()
-
+            
             funct(name, unpack(args))
         end)
-
+        
         newElem:WaitForChild("Name").Text = name
         newElem.Size = UDim2.new(0.95, 0, 0, element_height)
         newElem.Name = name
         newElem.Parent = tabContent
         newElem.Visible = false
-
+        
         -- Store element in current tab if we have one
         if currentTab then
             table.insert(tabs[currentTab].elements, newElem)
         end
     end
-
+    
     return newCombo
 end
 
@@ -1001,7 +1044,7 @@ function lib:SetIcon(img)
     Logo.Image = img
 end
 
-function lib:SetBackgroundColor(r, g ,b)
+function lib:SetBackgroundColor(r, g, b)
     Main.BackgroundColor3 = Color3.fromRGB(r, g, b)
     Intro.BackgroundColor3 = Color3.fromRGB(r, g, b)
 end
@@ -1016,7 +1059,7 @@ function lib:SetCloseBtnColor(r, g, b)
     Check.BackgroundColor3 = Color3.fromRGB(r, g, b)
 end
 
-function lib:SetButtonsColor(r, g ,b)
+function lib:SetButtonsColor(r, g, b)
     Toggle.BackgroundColor3 = Color3.fromRGB(r, g, b)
     Button.BackgroundColor3 = Color3.fromRGB(r, g, b)
     ComboElem.BackgroundColor3 = Color3.fromRGB(r, g, b)
@@ -1029,85 +1072,77 @@ function lib:SetInputBoxColor(r, g, b)
     TextBox.BackgroundColor3 = Color3.fromRGB(math.max(0, r-15), math.max(0, g-15), math.max(0, b-15))
 end
 
--- Set color for all tab buttons (global)
-function lib:SetTabButtonColor(r, g ,b)
-    tabDefaultColor = Color3.fromRGB(r,g,b)
+function lib:SetTabButtonColor(r, g, b)
     for _, tabData in pairs(tabs) do
-        applyTabAppearance(tabData.button, r, g, b, tabTransparency)
+        tabData.button.BackgroundColor3 = Color3.fromRGB(r, g, b)
     end
-    -- Also update template so future tabs inherit
-    TabButtonTemplate.BackgroundColor3 = tabDefaultColor
-    TabButtonTemplate.BackgroundTransparency = tabTransparency
 end
 
--- Set color for the active tab
 function lib:SetActiveTabColor(r, g, b)
-    tabActiveColor = Color3.fromRGB(r,g,b)
+    -- Update current tab if exists
     if currentTab and tabs[currentTab] then
-        applyTabAppearance(tabs[currentTab].button, r, g, b, tabTransparency)
+        tabs[currentTab].button.BackgroundColor3 = Color3.fromRGB(r, g, b)
     end
 end
 
--- Set transparency for tabs (0..1)
-function lib:SetTabTransparency(alpha)
-    if type(alpha) ~= "number" then return end
-    tabTransparency = math.clamp(alpha, 0, 1)
-    -- Apply to all
+-- New function to set tab button transparency
+function lib:SetTabButtonTransparency(transparency)
     for _, tabData in pairs(tabs) do
-        tabData.button.BackgroundTransparency = tabTransparency
+        tabData.button.BackgroundTransparency = transparency
     end
-    TabButtonTemplate.BackgroundTransparency = tabTransparency
 end
 
--- Set single tab color by name
-function lib:SetTabColor(tabName, r, g, b)
-    if tabs[tabName] then
-        applyTabAppearance(tabs[tabName].button, r, g, b, tabTransparency)
+-- New function to set tab button corner radius
+function lib:SetTabButtonCornerRadius(radius)
+    for _, tabData in pairs(tabs) do
+        local corner = tabData.button:FindFirstChild("TabButtonUICorner")
+        if corner then
+            corner.CornerRadius = UDim.new(radius, 0)
+        end
     end
 end
 
 function lib:SetTheme(theme)
     if theme == "Default" then
-        -- keep defaults
         lib:SetButtonsColor(55, 55, 55)
         lib:SetCloseBtnColor(255, 0, 0)
         lib:SetBackgroundColor(40, 40, 40)
         lib:SetInputBoxColor(55, 55, 55)
         lib:SetTabButtonColor(60, 60, 60)
-        lib:SetActiveTabColor(80, 80, 80)
-        lib:SetTabTransparency(0.10)
+        lib:SetTabButtonTransparency(0.10)
+        
     elseif theme == "TomorrowNightBlue" then
         lib:SetButtonsColor(74, 208, 238)
         lib:SetCloseBtnColor(74, 208, 238)
         lib:SetBackgroundColor(5, 16, 58)
         lib:SetInputBoxColor(74, 208, 238)
         lib:SetTabButtonColor(50, 150, 200)
-        lib:SetActiveTabColor(74, 208, 238)
-        lib:SetTabTransparency(0.10)
+        lib:SetTabButtonTransparency(0.10)
+        
     elseif theme == "HighContrast" then
         lib:SetBackgroundColor(0, 0, 0)
-        lib:SetButtonsColor(0, 0, 0)
+        lib:SetButtonsColor(30, 30, 30)
         lib:SetCloseBtnColor(255, 255, 0)
-        lib:SetInputBoxColor(0, 0, 0)
-        lib:SetTabButtonColor(30, 30, 30)
-        lib:SetActiveTabColor(255, 255, 0)
-        lib:SetTabTransparency(0.10)
+        lib:SetInputBoxColor(30, 30, 30)
+        lib:SetTabButtonColor(50, 50, 50)
+        lib:SetTabButtonTransparency(0.10)
+        
     elseif theme == "Aqua" then
         lib:SetBackgroundColor(44, 62, 82)
         lib:SetButtonsColor(52, 74, 95)
         lib:SetCloseBtnColor(26, 189, 158)
         lib:SetInputBoxColor(52, 74, 95)
         lib:SetTabButtonColor(40, 55, 70)
-        lib:SetActiveTabColor(26, 189, 158)
-        lib:SetTabTransparency(0.10)
+        lib:SetTabButtonTransparency(0.10)
+        
     elseif theme == "Ocean" then
         lib:SetBackgroundColor(26, 32, 58)
         lib:SetButtonsColor(38, 45, 71)
         lib:SetCloseBtnColor(86, 76, 251)
         lib:SetInputBoxColor(38, 45, 71)
         lib:SetTabButtonColor(30, 36, 60)
-        lib:SetActiveTabColor(86, 76, 251)
-        lib:SetTabTransparency(0.10)
+        lib:SetTabButtonTransparency(0.10)
+        
     else
         error("Theme not found.")
     end
@@ -1118,10 +1153,10 @@ function lib:RemoveTab(tabName)
     if tabs[tabName] then
         -- Remove tab button
         tabs[tabName].button:Destroy()
-
+        
         -- Remove tab content
         tabs[tabName].content:Destroy()
-
+        
         -- If this was the current tab, switch to another tab if available
         if currentTab == tabName then
             local newTab = nil
@@ -1131,14 +1166,14 @@ function lib:RemoveTab(tabName)
                     break
                 end
             end
-
+            
             if newTab then
                 lib:SwitchTab(newTab)
             else
                 currentTab = nil
             end
         end
-
+        
         -- Remove from tabs table
         tabs[tabName] = nil
     end
@@ -1156,74 +1191,43 @@ function lib:GetCurrentTab()
     return currentTab
 end
 
--- Close button behaviour remains, but note it's separate from the minimize keybind
-Close.MouseButton1Click:Connect(function()
-    Logo.Active = true
-    TweenService:Create(Intro, TweenInfo.new(0.25, Enum.EasingStyle.Linear, Enum.EasingDirection.In), {BackgroundTransparency = 0}):Play()
+-- New functions for PC-specific features
+function lib:IsPC()
+    return IS_PC
+end
 
-    task.wait(0.3)
-    Logo:TweenSizeAndPosition(
-        UDim2.fromScale(0.75, 0.75),
-        UDim2.fromScale(0.5, 0.5),
-        Enum.EasingDirection.Out,
-        Enum.EasingStyle.Quad,
-        0.25, true, nil
-    )
-
-    task.wait(0.3)
-    Main:TweenSize(
-        UDim2.fromScale(0.1, 0.175),
-        Enum.EasingDirection.Out,
-        Enum.EasingStyle.Quad,
-        0.25, true, nil
-    )
-
-    task.wait(0.3)
-    for _, obj in pairs(Main:GetChildren()) do
-        if obj:IsA("GuiObject") and obj ~= Intro then
-            obj.Visible = false
-        end
+function lib:SetMinimizeKeybind(keyCode)
+    if IS_PC then
+        -- Remove existing keybind if any
+        -- Note: In a real implementation, you'd want to track and manage keybinds properly
+        
+        UserInputService.InputBegan:Connect(function(input, gameProcessed)
+            if not gameProcessed then
+                if input.KeyCode == keyCode then
+                    toggleMinimize()
+                end
+            end
+        end)
     end
+end
 
-    TweenService:Create(Logo, TweenInfo.new(0.25, Enum.EasingStyle.Linear, Enum.EasingDirection.In), {ImageTransparency = 0.8}):Play()
-    TweenService:Create(Intro, TweenInfo.new(0.25, Enum.EasingStyle.Linear, Enum.EasingDirection.In), {BackgroundTransparency = 1}):Play()
-    TweenService:Create(Main, TweenInfo.new(0.25, Enum.EasingStyle.Linear, Enum.EasingDirection.In), {BackgroundTransparency = 0.8}):Play()
-end)
-
-Logo.MouseButton1Click:Connect(function()
-    Logo.Active = false
-    TweenService:Create(Logo, TweenInfo.new(0.25, Enum.EasingStyle.Linear, Enum.EasingDirection.In), {ImageTransparency = 0}):Play()
-    TweenService:Create(Intro, TweenInfo.new(0.25, Enum.EasingStyle.Linear, Enum.EasingDirection.In), {BackgroundTransparency = 0}):Play()
-    TweenService:Create(Main, TweenInfo.new(0.25, Enum.EasingStyle.Linear, Enum.EasingDirection.In), {BackgroundTransparency = 0}):Play()
-
-    task.wait(0.3)
-    Main:TweenSize(
-        UDim2.fromScale(0.3, 0.3),
-        Enum.EasingDirection.Out,
-        Enum.EasingStyle.Quad,
-        0.25, true, nil
-    )
-
-    task.wait(0.3)
-    Logo:TweenSizeAndPosition(
-        UDim2.fromScale(0.175, 0.175),
-        UDim2.fromScale(0.075, 0.15),
-        Enum.EasingDirection.Out,
-        Enum.EasingStyle.Quad,
-        0.25, true, nil
-    )
-
-    for _, obj in pairs(Main:GetChildren()) do
-        if obj:IsA("GuiObject") and obj ~= Intro then
-            obj.Visible = true
-        end
+function lib:SetPCUIScale(widthScale, heightScale)
+    if IS_PC then
+        originalMainSize = UDim2.new(widthScale or 0.35, 0, heightScale or 0.4, 0)
+        Main.Size = originalMainSize
     end
+end
 
-    task.wait(0.3)
-    TweenService:Create(Intro, TweenInfo.new(0.25, Enum.EasingStyle.Linear, Enum.EasingDirection.In), {BackgroundTransparency = 1}):Play()
-end)
+function lib:ToggleMinimize()
+    toggleMinimize()
+end
 
--- INIT animations
+function lib:IsMinimized()
+    return isMinimized
+end
+
+-- INIT
+
 Main:TweenPosition(
     UDim2.fromScale(0.5, 0.5),
     Enum.EasingDirection.In,
