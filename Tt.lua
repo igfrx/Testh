@@ -122,7 +122,7 @@ TabsListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 TabsListLayout.Padding = UDim.new(0.02, 0)
 
 TabButtonTemplate.Name = "TabButtonTemplate"
-TabButtonTemplate.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+TabButtonTemplate.BackgroundColor3 = Color3.fromRGB(22, 29, 50)
 TabButtonTemplate.BorderSizePixel = 0
 TabButtonTemplate.Size = UDim2.new(0, 80, 0.8, 0) -- Small fixed width for tabs
 TabButtonTemplate.BackgroundTransparency = 0.50
