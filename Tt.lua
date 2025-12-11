@@ -1,4 +1,4 @@
--- Arceus UI Library with Tabs
+-- Arceus UI Library with Tabs (TabBar moved above UI & made smaller)
 -- Compatible with existing API; new: lib:AddTab(name) returns a tab object to add elements into that tab.
 
 local lib = {}
@@ -525,20 +525,23 @@ local tabs = {} -- map name -> tab object {Button = ..., Content = ScrollingFram
 local tabOrder = {} -- preserve creation order
 local activeTabName = nil
 
--- Create TabBar (buttons row)
+-- Create TabBar (buttons row) ABOVE the Main UI (parented to Arceus)
 local TabBar = Instance.new("Frame")
 TabBar.Name = "TabBar"
-TabBar.Parent = Main
+TabBar.Parent = Arceus
 TabBar.BackgroundTransparency = 1
-TabBar.Position = UDim2.new(0.025, 0, 0.24, 0)
-TabBar.Size = UDim2.new(0.95, 0, 0, 32)
+-- position it above the main window and centered
+TabBar.AnchorPoint = Vector2.new(0.5, 0.5)
+TabBar.Position = UDim2.new(0.5, 0, 0.12, 0) -- above the UI
+TabBar.Size = UDim2.new(0.45, 0, 0, 28) -- smaller width and height
 TabBar.ClipsDescendants = true
+TabBar.ZIndex = 1000
 
 local TabListLayout = Instance.new("UIListLayout")
 TabListLayout.Parent = TabBar
 TabListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 TabListLayout.FillDirection = Enum.FillDirection.Horizontal
-TabListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+TabListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 TabListLayout.Padding = UDim.new(0, 6)
 
 -- Keep menu as the default tab content frame (Menu variable)
@@ -554,7 +557,8 @@ local function register_tab(name, contentFrame)
 	t.Button.Parent = TabBar
 	t.Button.AutoButtonColor = true
 	t.Button.BackgroundColor3 = Color3.fromRGB(55, 55, 55)
-	t.Button.Size = UDim2.new(0, 100, 1, 0)
+	-- smaller fixed button width
+	t.Button.Size = UDim2.new(0, 86, 1, 0)
 	t.Button.Font = Enum.Font.TitilliumWeb
 	t.Button.Text = name
 	t.Button.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -562,7 +566,7 @@ local function register_tab(name, contentFrame)
 	t.Button.BorderSizePixel = 0
 
 	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0.2, 0)
+	corner.CornerRadius = UDim.new(0.15, 0)
 	corner.Parent = t.Button
 
 	-- on click: make tab active
