@@ -1,8 +1,3 @@
--- Arceus UI (modified)
--- Adds: tab button UICorners, tab translucency (0.10) tied to themes, tab color setter,
--- PC detection (bigger UI) and RightCtrl minimize toggle (PC only).
--- Save this file and require/execute it in a LocalScript.
-
 local lib = {}
 
 local Script_Title = "Loading.."
@@ -80,7 +75,18 @@ Main.AnchorPoint = Vector2.new(0.5, 0.5)
 Main.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 Main.BorderSizePixel = 0
 Main.Position = UDim2.new(0.5, 0, -0.2, 0) --UDim2.new(0.5, 0, 0.5, 0)
-Main.Size = UDim2.new(0.3, 0, 0.3, 0)
+
+-- Detect if running on PC
+local IS_PC = game:GetService("UserInputService"):GetPlatform() == Enum.Platform.Windows or 
+              game:GetService("UserInputService"):GetPlatform() == Enum.Platform.UWP or
+              game:GetService("UserInputService"):GetPlatform() == Enum.Platform.MacOsX
+
+-- Set size based on platform
+if IS_PC then
+    Main.Size = UDim2.new(0.35, 0, 0.4, 0) -- Larger UI for PC
+else
+    Main.Size = UDim2.new(0.3, 0, 0.3, 0) -- Original size for mobile
+end
 
 UICorner.CornerRadius = UDim.new(0.1, 0)
 UICorner.Parent = Main
@@ -139,14 +145,7 @@ TabButtonTemplate.TextSize = 14
 TabButtonTemplate.TextWrapped = true
 TabButtonTemplate.AutoButtonColor = false
 
--- Default tab appearance variables (exposed to lib functions)
-local tabButtonColor = Color3.fromRGB(60, 60, 60)
-local tabButtonTransparency = 0.10 -- 0.10 requested
-local activeTabColor = Color3.fromRGB(80, 80, 80)
-
-TabButtonTemplate.BackgroundColor3 = tabButtonColor
-TabButtonTemplate.BackgroundTransparency = tabButtonTransparency
-
+-- Add UI corners to tab buttons
 TabButtonUICorner.CornerRadius = UDim.new(0.15, 0)
 TabButtonUICorner.Parent = TabButtonTemplate
 
@@ -205,7 +204,7 @@ Menu.Position = UDim2.new(0.5, 0, 0.95, 0)
 Menu.Size = UDim2.new(0.95, 0, 0.65, 0)
 Menu.CanvasSize = UDim2.new(0, 0, 0, 0)
 Menu.ScrollBarImageColor3 = Color3.fromRGB(255, 255, 255)
-Menu.ScrollBarThickness = 8
+Menu.ScrollBarThickness = Menu.AbsoluteSize.X/25
 
 UIListLayout.Parent = Menu
 UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
@@ -488,112 +487,157 @@ MaxLabel.Visible = false
 
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
+
+-- Variables for UI state management
+local isMinimized = false
+local originalMainSize = Main.Size
+local originalMainPosition = Main.Position
+local minimizedSize = UDim2.new(0.1, 0, 0.175, 0)
+
+-- Set initial transparency to 0.10 (90% visible)
+Main.BackgroundTransparency = 0.10
+Intro.BackgroundTransparency = 0.10
+
+-- Function to toggle UI minimization
+local function toggleMinimize()
+    if isMinimized then
+        -- Restore UI
+        Logo.Active = false
+        TweenService:Create(Logo, TweenInfo.new(0.25, Enum.EasingStyle.Linear, Enum.EasingDirection.In), {ImageTransparency = 0}):Play()
+        TweenService:Create(Intro, TweenInfo.new(0.25, Enum.EasingStyle.Linear, Enum.EasingDirection.In), {BackgroundTransparency = 0.10}):Play()
+        TweenService:Create(Main, TweenInfo.new(0.25, Enum.EasingStyle.Linear, Enum.EasingDirection.In), {BackgroundTransparency = 0.10}):Play()
+        
+        task.wait(0.3)
+        Main:TweenSize(
+            originalMainSize,
+            Enum.EasingDirection.Out,
+            Enum.EasingStyle.Quad,
+            0.25, true, nil
+        )
+        
+        task.wait(0.3)
+        Logo:TweenSizeAndPosition(
+            UDim2.fromScale(0.175, 0.175),
+            UDim2.fromScale(0.075, 0.15),
+            Enum.EasingDirection.Out,
+            Enum.EasingStyle.Quad,
+            0.25, true, nil
+        )
+        
+        for _, obj in pairs(Main:GetChildren()) do
+            if obj:IsA("GuiObject") and obj ~= Intro and obj ~= MainShadow then
+                obj.Visible = true
+            end
+        end
+        
+        task.wait(0.3)
+        TweenService:Create(Intro, TweenInfo.new(0.25, Enum.EasingStyle.Linear, Enum.EasingDirection.In), {BackgroundTransparency = 1}):Play()
+    else
+        -- Minimize UI
+        Logo.Active = true
+        TweenService:Create(Intro, TweenInfo.new(0.25, Enum.EasingStyle.Linear, Enum.EasingDirection.In), {BackgroundTransparency = 0.10}):Play()
+        
+        task.wait(0.3)
+        Logo:TweenSizeAndPosition(
+            UDim2.fromScale(0.75, 0.75),
+            UDim2.fromScale(0.5, 0.5),
+            Enum.EasingDirection.Out,
+            Enum.EasingStyle.Quad,
+            0.25, true, nil
+        )
+        
+        task.wait(0.3)
+        Main:TweenSize(
+            minimizedSize,
+            Enum.EasingDirection.Out,
+            Enum.EasingStyle.Quad,
+            0.25, true, nil
+        )
+        
+        task.wait(0.3)
+        for _, obj in pairs(Main:GetChildren()) do
+            if obj:IsA("GuiObject") and obj ~= Intro and obj ~= MainShadow and obj ~= Logo then
+                obj.Visible = false
+            end
+        end
+        
+        TweenService:Create(Logo, TweenInfo.new(0.25, Enum.EasingStyle.Linear, Enum.EasingDirection.In), {ImageTransparency = 0.8}):Play()
+        TweenService:Create(Intro, TweenInfo.new(0.25, Enum.EasingStyle.Linear, Enum.EasingDirection.In), {BackgroundTransparency = 1}):Play()
+        TweenService:Create(Main, TweenInfo.new(0.25, Enum.EasingStyle.Linear, Enum.EasingDirection.In), {BackgroundTransparency = 0.8}):Play()
+    end
+    
+    isMinimized = not isMinimized
+end
+
+-- Set up RightCtrl keybind for PC only
+if IS_PC then
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if not gameProcessed then
+            if input.KeyCode == Enum.KeyCode.RightControl then
+                toggleMinimize()
+            end
+        end
+    end)
+end
 
 Close.MouseButton1Click:Connect(function()
-	Logo.Active = true
-	TweenService:Create(Intro, TweenInfo.new(0.25, Enum.EasingStyle.Linear, Enum.EasingDirection.In), {BackgroundTransparency = 0}):Play()
-
-	task.wait(0.3)
-	Logo:TweenSizeAndPosition(
-		UDim2.fromScale(0.75, 0.75),
-		UDim2.fromScale(0.5, 0.5),
-		Enum.EasingDirection.Out,
-		Enum.EasingStyle.Quad,
-		0.25, true, nil
-	)
-
-	task.wait(0.3)
-	Main:TweenSize(
-		UDim2.fromScale(0.1, 0.175),
-		Enum.EasingDirection.Out,
-		Enum.EasingStyle.Quad,
-		0.25, true, nil
-	)
-
-	task.wait(0.3)
-	for _, obj in pairs(Main:GetChildren()) do
-		if obj:IsA("GuiObject") and obj ~= Intro then
-			obj.Visible = false
-		end
-	end
-
-	TweenService:Create(Logo, TweenInfo.new(0.25, Enum.EasingStyle.Linear, Enum.EasingDirection.In), {ImageTransparency = 0.8}):Play()
-	TweenService:Create(Intro, TweenInfo.new(0.25, Enum.EasingStyle.Linear, Enum.EasingDirection.In), {BackgroundTransparency = 1}):Play()
-	TweenService:Create(Main, TweenInfo.new(0.25, Enum.EasingStyle.Linear, Enum.EasingDirection.In), {BackgroundTransparency = 0.8}):Play()
+    toggleMinimize()
 end)
 
 Logo.MouseButton1Click:Connect(function()
-	Logo.Active = false
-	TweenService:Create(Logo, TweenInfo.new(0.25, Enum.EasingStyle.Linear, Enum.EasingDirection.In), {ImageTransparency = 0}):Play()
-	TweenService:Create(Intro, TweenInfo.new(0.25, Enum.EasingStyle.Linear, Enum.EasingDirection.In), {BackgroundTransparency = 0}):Play()
-	TweenService:Create(Main, TweenInfo.new(0.25, Enum.EasingStyle.Linear, Enum.EasingDirection.In), {BackgroundTransparency = 0}):Play()
-
-	task.wait(0.3)
-	Main:TweenSize(
-		UDim2.fromScale(0.3, 0.3),
-		Enum.EasingDirection.Out,
-		Enum.EasingStyle.Quad,
-		0.25, true, nil
-	)
-
-	task.wait(0.3)
-	Logo:TweenSizeAndPosition(
-		UDim2.fromScale(0.175, 0.175),
-		UDim2.fromScale(0.075, 0.15),
-		Enum.EasingDirection.Out,
-		Enum.EasingStyle.Quad,
-		0.25, true, nil
-	)
-
-	for _, obj in pairs(Main:GetChildren()) do
-		if obj:IsA("GuiObject") and obj ~= Intro then
-			obj.Visible = true
-		end
-	end
-
-	task.wait(0.3)
-	TweenService:Create(Intro, TweenInfo.new(0.25, Enum.EasingStyle.Linear, Enum.EasingDirection.In), {BackgroundTransparency = 1}):Play()
+    if isMinimized then
+        toggleMinimize()
+    else
+        -- Original logo click behavior when not minimized
+        Logo.Active = false
+        TweenService:Create(Logo, TweenInfo.new(0.25, Enum.EasingStyle.Linear, Enum.EasingDirection.In), {ImageTransparency = 0}):Play()
+        TweenService:Create(Intro, TweenInfo.new(0.25, Enum.EasingStyle.Linear, Enum.EasingDirection.In), {BackgroundTransparency = 0.10}):Play()
+        TweenService:Create(Main, TweenInfo.new(0.25, Enum.EasingStyle.Linear, Enum.EasingDirection.In), {BackgroundTransparency = 0.10}):Play()
+        
+        task.wait(0.3)
+        Logo:TweenSizeAndPosition(
+            UDim2.fromScale(0.175, 0.175),
+            UDim2.fromScale(0.075, 0.15),
+            Enum.EasingDirection.Out,
+            Enum.EasingStyle.Quad,
+            0.25, true, nil
+        )
+        
+        task.wait(0.3)
+        TweenService:Create(Intro, TweenInfo.new(0.25, Enum.EasingStyle.Linear, Enum.EasingDirection.In), {BackgroundTransparency = 1}):Play()
+    end
 end)
 
 local function uiparent()
-	local success, parent = pcall(function()
-		return gethui()
-	end)
-
-	if not success then
-		return game:GetService("CoreGui")
-	end
-
-	return parent
+    local success, parent = pcall(function()
+        return gethui()
+    end)
+    
+    if not success then
+        return game:GetService("CoreGui")
+    end
+    
+    return parent
 end
 
 local success, err = pcall(function()
-	Arceus.Parent = uiparent()
+    Arceus.Parent = uiparent()
 end)
 
 if not success then
-	Arceus.Parent = game:GetService("Players").LocalPlayer.PlayerGui
+    Arceus.Parent = game:GetService("Players").LocalPlayer.PlayerGui
 end
 
--- Element sizing helper (recomputed if UI size changes)
-local function compute_element_height()
-	-- keep the same proportional mapping used previously but safe
-	local base = 50
-	local menuY = math.max(1, Menu.AbsoluteSize.Y)
-	return base * (menuY / 210)
-end
-
-local element_height = compute_element_height()
+local element_height = 50*Menu.AbsoluteSize.Y/210
 local elements = 0
 
 local function AddSpace(parent)
-	local space = tab:Clone()
-	space.Parent = parent
-	space.LayoutOrder = elements
-	space.Visible = true
-
-	elements += 1
+    local space = tab:Clone()
+    space.Parent = parent
+    space.LayoutOrder = elements
+    space.Visible = true
+    
+    elements += 1
 end
 
 -- Tab System Variables
@@ -602,20 +646,6 @@ local tabs = {}
 local tabContents = {}
 local tabOrderCounter = 0
 
--- Keep track of template appearance for new tabs
-local function applyTabAppearance(button)
-	if button and button:IsA("GuiObject") then
-		button.BackgroundColor3 = tabButtonColor
-		button.BackgroundTransparency = tabButtonTransparency
-		-- ensure there's a UICorner
-		if not button:FindFirstChildWhichIsA("UICorner") then
-			local c = Instance.new("UICorner")
-			c.CornerRadius = UDim.new(0.15, 0)
-			c.Parent = button
-		end
-	end
-end
-
 function lib:CreateTab(name)
     local newTabButton = TabButtonTemplate:Clone()
     newTabButton.Name = name .. "Tab"
@@ -623,8 +653,8 @@ function lib:CreateTab(name)
     newTabButton.Parent = TabsScroller
     newTabButton.Visible = true
     
-    -- Apply current tab appearance (color + transparency + corner)
-    applyTabAppearance(newTabButton)
+    -- Set initial transparency
+    newTabButton.BackgroundTransparency = 0.10
     
     -- Create a container for this tab's content
     local tabContent = Instance.new("ScrollingFrame")
@@ -674,14 +704,12 @@ function lib:SwitchTab(tabName)
         -- Hide current tab content
         if currentTab and tabs[currentTab] then
             tabs[currentTab].content.Visible = false
-            tabs[currentTab].button.BackgroundColor3 = tabButtonColor
-            tabs[currentTab].button.BackgroundTransparency = tabButtonTransparency
+            tabs[currentTab].button.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
         end
         
         -- Show new tab content
         tabs[tabName].content.Visible = true
-        tabs[tabName].button.BackgroundColor3 = activeTabColor
-        tabs[tabName].button.BackgroundTransparency = 0 -- active more opaque
+        tabs[tabName].button.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
         
         -- Update current tab
         currentTab = tabName
@@ -710,7 +738,6 @@ function lib:AddToggle(name, funct, enabled, ...)
     newTog:WaitForChild("Enabled"):WaitForChild("Check").Visible = enabled
     newTog:WaitForChild("Name").Text = name
     
-    element_height = compute_element_height()
     newTog.Size = UDim2.new(0.95, 0, 0, element_height)
     newTog.Name = name
     newTog.Parent = tabContent
@@ -735,7 +762,6 @@ function lib:AddButton(name, funct, ...)
     end)
     
     newBut:WaitForChild("Name").Text = name
-    element_height = compute_element_height()
     newBut.Size = UDim2.new(0.95, 0, 0, element_height)
     newBut.Name = name
     newBut.Parent = tabContent
@@ -888,7 +914,6 @@ function lib:AddInputBox(name, funct, placeholder, default, options, ...)
         end
     end)
     
-    element_height = compute_element_height()
     newInput.Size = UDim2.new(0.95, 0, 0, element_height)
     newInput.Name = name
     newInput.Parent = tabContent
@@ -974,7 +999,6 @@ function lib:AddComboBox(text, options, funct, ...)
     end)
     
     newCombo:WaitForChild("Name").Text = text .. ": " .. (#options > 0 and options[1] or "")
-    element_height = compute_element_height()
     newCombo.Size = UDim2.new(0.95, 0, 0, element_height)
     newCombo.Name = #options > 0 and options[1] or ""
     newCombo.Parent = tabContent
@@ -998,7 +1022,6 @@ function lib:AddComboBox(text, options, funct, ...)
         end)
         
         newElem:WaitForChild("Name").Text = name
-        element_height = compute_element_height()
         newElem.Size = UDim2.new(0.95, 0, 0, element_height)
         newElem.Name = name
         newElem.Parent = tabContent
@@ -1021,7 +1044,7 @@ function lib:SetIcon(img)
     Logo.Image = img
 end
 
-function lib:SetBackgroundColor(r, g ,b)
+function lib:SetBackgroundColor(r, g, b)
     Main.BackgroundColor3 = Color3.fromRGB(r, g, b)
     Intro.BackgroundColor3 = Color3.fromRGB(r, g, b)
 end
@@ -1036,7 +1059,7 @@ function lib:SetCloseBtnColor(r, g, b)
     Check.BackgroundColor3 = Color3.fromRGB(r, g, b)
 end
 
-function lib:SetButtonsColor(r, g ,b)
+function lib:SetButtonsColor(r, g, b)
     Toggle.BackgroundColor3 = Color3.fromRGB(r, g, b)
     Button.BackgroundColor3 = Color3.fromRGB(r, g, b)
     ComboElem.BackgroundColor3 = Color3.fromRGB(r, g, b)
@@ -1049,86 +1072,80 @@ function lib:SetInputBoxColor(r, g, b)
     TextBox.BackgroundColor3 = Color3.fromRGB(math.max(0, r-15), math.max(0, g-15), math.max(0, b-15))
 end
 
--- Set tab button base color for ALL tabs and future tabs
 function lib:SetTabButtonColor(r, g, b)
-    tabButtonColor = Color3.fromRGB(r, g, b)
-    -- apply to template
-    TabButtonTemplate.BackgroundColor3 = tabButtonColor
-    TabButtonTemplate.BackgroundTransparency = tabButtonTransparency
-    -- update existing buttons
     for _, tabData in pairs(tabs) do
-        if tabData and tabData.button then
-            tabData.button.BackgroundColor3 = tabButtonColor
-            tabData.button.BackgroundTransparency = tabButtonTransparency
-        end
+        tabData.button.BackgroundColor3 = Color3.fromRGB(r, g, b)
     end
 end
 
--- Set active tab color
 function lib:SetActiveTabColor(r, g, b)
-    activeTabColor = Color3.fromRGB(r, g, b)
     -- Update current tab if exists
     if currentTab and tabs[currentTab] then
-        tabs[currentTab].button.BackgroundColor3 = activeTabColor
-        tabs[currentTab].button.BackgroundTransparency = 0
+        tabs[currentTab].button.BackgroundColor3 = Color3.fromRGB(r, g, b)
     end
 end
 
--- Set tab button transparency (e.g. 0.10)
-function lib:SetTabButtonTransparency(value)
-    tabButtonTransparency = tonumber(value) or 0
-    TabButtonTemplate.BackgroundTransparency = tabButtonTransparency
+-- New function to set tab button transparency
+function lib:SetTabButtonTransparency(transparency)
     for _, tabData in pairs(tabs) do
-        if tabData and tabData.button then
-            -- keep active tab more opaque
-            if currentTab and tabData.name == currentTab then
-                tabData.button.BackgroundTransparency = 0
-            else
-                tabData.button.BackgroundTransparency = tabButtonTransparency
-            end
+        tabData.button.BackgroundTransparency = transparency
+    end
+end
+
+-- New function to set tab button corner radius
+function lib:SetTabButtonCornerRadius(radius)
+    for _, tabData in pairs(tabs) do
+        local corner = tabData.button:FindFirstChild("TabButtonUICorner")
+        if corner then
+            corner.CornerRadius = UDim.new(radius, 0)
         end
     end
 end
 
 function lib:SetTheme(theme)
     if theme == "Default" then
-        -- No-op; developers can call SetTabButtonColor separately if desired
+        lib:SetButtonsColor(55, 55, 55)
+        lib:SetCloseBtnColor(255, 0, 0)
+        lib:SetBackgroundColor(40, 40, 40)
+        lib:SetInputBoxColor(55, 55, 55)
         lib:SetTabButtonColor(60, 60, 60)
-        lib:SetActiveTabColor(80, 80, 80)
+        lib:SetTabButtonTransparency(0.10)
+        
     elseif theme == "TomorrowNightBlue" then
         lib:SetButtonsColor(74, 208, 238)
         lib:SetCloseBtnColor(74, 208, 238)
         lib:SetBackgroundColor(5, 16, 58)
         lib:SetInputBoxColor(74, 208, 238)
         lib:SetTabButtonColor(50, 150, 200)
-        lib:SetActiveTabColor(74, 208, 238)
+        lib:SetTabButtonTransparency(0.10)
+        
     elseif theme == "HighContrast" then
         lib:SetBackgroundColor(0, 0, 0)
-        lib:SetButtonsColor(0, 0, 0)
+        lib:SetButtonsColor(30, 30, 30)
         lib:SetCloseBtnColor(255, 255, 0)
-        lib:SetInputBoxColor(0, 0, 0)
-        lib:SetTabButtonColor(30, 30, 30)
-        lib:SetActiveTabColor(255, 255, 0)
+        lib:SetInputBoxColor(30, 30, 30)
+        lib:SetTabButtonColor(50, 50, 50)
+        lib:SetTabButtonTransparency(0.10)
+        
     elseif theme == "Aqua" then
         lib:SetBackgroundColor(44, 62, 82)
         lib:SetButtonsColor(52, 74, 95)
         lib:SetCloseBtnColor(26, 189, 158)
         lib:SetInputBoxColor(52, 74, 95)
         lib:SetTabButtonColor(40, 55, 70)
-        lib:SetActiveTabColor(26, 189, 158)
+        lib:SetTabButtonTransparency(0.10)
+        
     elseif theme == "Ocean" then
         lib:SetBackgroundColor(26, 32, 58)
         lib:SetButtonsColor(38, 45, 71)
         lib:SetCloseBtnColor(86, 76, 251)
         lib:SetInputBoxColor(38, 45, 71)
         lib:SetTabButtonColor(30, 36, 60)
-        lib:SetActiveTabColor(86, 76, 251)
+        lib:SetTabButtonTransparency(0.10)
+        
     else
         error("Theme not found.")
     end
-
-    -- Ensure transparency is applied after theme changes
-    lib:SetTabButtonTransparency(tabButtonTransparency)
 end
 
 -- Tab System Functions
@@ -1174,123 +1191,42 @@ function lib:GetCurrentTab()
     return currentTab
 end
 
--- INIT
-
--- PC detection: simple heuristic (no touch -> PC)
-local isPC = false
-local ok, platform = pcall(function() return UserInputService:GetPlatform() end)
--- Use TouchEnabled for broad detection; also consider platform if available
-if (not UserInputService.TouchEnabled) then
-    isPC = true
+-- New functions for PC-specific features
+function lib:IsPC()
+    return IS_PC
 end
 
--- If PC, make UI bigger and tweak sizes
-local defaultSize = Main.Size
-if isPC then
-    -- increase Main size for PC
-    Main.Size = UDim2.new(0.45, 0, 0.45, 0)
-    -- adjust intro/logo placement maybe
-    TabsContainer.Size = UDim2.new(1, 0, 0.16, 0)
-    -- recompute element height based on new menu size
-    element_height = compute_element_height()
-else
-    -- keep mobile/smaller default
-    element_height = compute_element_height()
-end
-
--- Minimize toggle (RightCtrl on PC)
-local minimized = false
-local restoreState = {
-    Size = Main.Size,
-    Position = Main.Position,
-    ChildrenVisibility = {}
-}
-
-local function storeRestoreState()
-    restoreState.Size = Main.Size
-    restoreState.Position = Main.Position
-    restoreState.ChildrenVisibility = {}
-    for _, obj in pairs(Main:GetChildren()) do
-        if obj:IsA("GuiObject") then
-            restoreState.ChildrenVisibility[obj] = obj.Visible
-        end
-    end
-end
-
-local function applyMinimize()
-    -- shrink and hide most children (similar to Close button behavior but reversible)
-    storeRestoreState()
-    -- Tween logo and main to small
-    TweenService:Create(Logo, TweenInfo.new(0.25, Enum.EasingStyle.Linear, Enum.EasingDirection.In), {ImageTransparency = 0.8}):Play()
-    Logo:TweenSizeAndPosition(
-        UDim2.fromScale(0.75, 0.75),
-        UDim2.fromScale(0.5, 0.5),
-        Enum.EasingDirection.Out,
-        Enum.EasingStyle.Quad,
-        0.25, true, nil
-    )
-    Main:TweenSize(
-        UDim2.fromScale(0.1, 0.175),
-        Enum.EasingDirection.Out,
-        Enum.EasingStyle.Quad,
-        0.25, true, nil
-    )
-    task.wait(0.3)
-    for _, obj in pairs(Main:GetChildren()) do
-        if obj:IsA("GuiObject") and obj ~= Intro then
-            obj.Visible = false
-        end
-    end
-end
-
-local function restoreFromMinimize()
-    -- restore previous visibility and sizes
-    if restoreState.Size then
-        Main:TweenSize(restoreState.Size, Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.25, true)
-    end
-    if restoreState.Position then
-        Main:TweenPosition(restoreState.Position, Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.25, true)
-    end
-    TweenService:Create(Logo, TweenInfo.new(0.25, Enum.EasingStyle.Linear, Enum.EasingDirection.In), {ImageTransparency = 0}):Play()
-    task.wait(0.3)
-    for obj, vis in pairs(restoreState.ChildrenVisibility) do
-        if obj and obj.Parent then
-            obj.Visible = vis
-        end
-    end
-end
-
-local function ToggleMinimize()
-    minimized = not minimized
-    if minimized then
-        applyMinimize()
-    else
-        restoreFromMinimize()
-    end
-end
-
--- Only bind RightCtrl on PC
-if isPC then
-    UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if gameProcessed then return end
-        if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == Enum.KeyCode.RightControl then
-            ToggleMinimize()
-        end
-    end)
-end
-
--- Update element_height when the menu absolute size changes (handles resizing)
-Menu:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-    element_height = compute_element_height()
-    -- update existing elements heights conservatively:
-    for _, tabData in pairs(tabs) do
-        for _, elem in ipairs(tabData.elements) do
-            if elem and elem:IsA("GuiObject") then
-                elem.Size = UDim2.new(elem.Size.X.Scale, elem.Size.X.Offset, 0, element_height)
+function lib:SetMinimizeKeybind(keyCode)
+    if IS_PC then
+        -- Remove existing keybind if any
+        -- Note: In a real implementation, you'd want to track and manage keybinds properly
+        
+        UserInputService.InputBegan:Connect(function(input, gameProcessed)
+            if not gameProcessed then
+                if input.KeyCode == keyCode then
+                    toggleMinimize()
+                end
             end
-        end
+        end)
     end
-end)
+end
+
+function lib:SetPCUIScale(widthScale, heightScale)
+    if IS_PC then
+        originalMainSize = UDim2.new(widthScale or 0.35, 0, heightScale or 0.4, 0)
+        Main.Size = originalMainSize
+    end
+end
+
+function lib:ToggleMinimize()
+    toggleMinimize()
+end
+
+function lib:IsMinimized()
+    return isMinimized
+end
+
+-- INIT
 
 Main:TweenPosition(
     UDim2.fromScale(0.5, 0.5),
@@ -1310,13 +1246,5 @@ Logo:TweenSizeAndPosition(
 
 task.wait(1.5)
 TweenService:Create(Intro, TweenInfo.new(1, Enum.EasingStyle.Linear, Enum.EasingDirection.In), {BackgroundTransparency = 1}):Play()
-
--- Expose utility for checking if runtime is PC
-function lib:IsPC()
-    return isPC
-end
-
--- Ensure initial tab transparency is set
-lib:SetTabButtonTransparency(tabButtonTransparency)
 
 return lib
