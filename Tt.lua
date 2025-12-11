@@ -617,18 +617,18 @@ function lib:CreateTab(name)
     
     -- Set up tab button click
     newTabButton.MouseButton1Click:Connect(function()
-        lib:SwitchTab(name)
+        lib:Tab(name)
     end)
     
     -- If this is the first tab, make it active
     if not currentTab then
-        lib:SwitchTab(name)
+        lib:Tab(name)
     end
     
     return tabData
 end
 
-function lib:SwitchTab(tabName)
+function lib:Tab(tabName)
     if tabs[tabName] then
         -- Hide current tab content
         if currentTab and tabs[currentTab] then
@@ -1066,7 +1066,7 @@ function lib:RemoveTab(tabName)
             end
             
             if newTab then
-                lib:SwitchTab(newTab)
+                lib:Tab(newTab)
             else
                 currentTab = nil
             end
